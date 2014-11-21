@@ -16,6 +16,8 @@ MODULE markuspline
 		REAL(KIND=8), PRIVATE, ALLOCATABLE :: S(:,:)       !Matrix necessary to compute the spline
 		REAL(KIND=8), PRIVATE, ALLOCATABLE :: ST(:,:)        !S matrix transposed, useful for improved performance
 		REAL(KIND=8), PRIVATE, ALLOCATABLE :: DF(:,:)    !Factors necessary for the computation of the derivatives
+      LOGICAL :: cutoff                                !Specifies whether the spline goes smoothly to zero at Lb or not
+      INTEGER, PRIVATE :: fade                         !If 1 the spline vanish to zero at Lb, if 0 it does not
 	END TYPE MSPLINE
 
    !subroutines used internally, which should not be accessible from outside
@@ -26,12 +28,13 @@ MODULE markuspline
 CONTAINS
 
 	
-	FUNCTION new_MSPLINE(m,Nknots,La,Lb)
+	FUNCTION new_MSPL(m,Nknots,La,Lb,cutoff)
 	!create new spline object
 		IMPLICIT NONE
-		TYPE(MSPLINE) :: new_MSPLINE
+		TYPE(MSPLINE) :: new_MSPL
 		INTEGER, INTENT(IN) :: Nknots, m
 		REAL(KIND=8), INTENT(IN) :: La, Lb
+      LOGICAL, INTENT(IN) :: cutoff
 		INTEGER :: i, j
 		
 		IF (MSPL_DEBUG_MODE) THEN
@@ -52,47 +55,55 @@ CONTAINS
          END IF
 		END IF
 		
-		new_MSPLINE%Nknots=Nknots
+		new_MSPL%Nknots=Nknots
 		
-		new_MSPLINE%m=m
-		new_MSPLINE%po=2*m+1
+		new_MSPL%m=m
+		new_MSPL%po=2*m+1
 
-		new_MSPLINE%La=La
-		new_MSPLINE%Lb=Lb
-		new_MSPLINE%delta=(Lb-La)/REAL(Nknots,8)
-		new_MSPLINE%Idelta=1.d0/new_MSPLINE%delta
+		new_MSPL%La=La
+		new_MSPL%Lb=Lb
+		new_MSPL%delta=(Lb-La)/REAL(Nknots,8)
+		new_MSPL%Idelta=1.d0/new_MSPL%delta
 
-		ALLOCATE(new_MSPLINE%x(-1:Nknots+1))
-		DO i = -1, new_MSPLINE%Nknots+1, 1
-			new_MSPLINE%x(i)=La+new_MSPLINE%delta*REAL(i,8)
+		ALLOCATE(new_MSPL%x(-1:Nknots+1))
+		DO i = -1, new_MSPL%Nknots+1, 1
+			new_MSPL%x(i)=La+new_MSPL%delta*REAL(i,8)
 		END DO
 
-		ALLOCATE(new_MSPLINE%t(0:m,0:Nknots))
-		new_MSPLINE%t=0.d0
+		ALLOCATE(new_MSPL%t(0:m,0:Nknots))
+		new_MSPL%t=0.d0
 		
-		ALLOCATE(new_MSPLINE%S(0:m,0:new_MSPLINE%po))
-		CALL generate_matrix_S(new_MSPLINE)
-		ALLOCATE(new_MSPLINE%ST(0:new_MSPLINE%po,0:m))
+		ALLOCATE(new_MSPL%S(0:m,0:new_MSPL%po))
+		CALL generate_matrix_S(new_MSPL)
+		ALLOCATE(new_MSPL%ST(0:new_MSPL%po,0:m))
 		DO j = 0, m, 1
-			DO i = 0, new_MSPLINE%po, 1
-				new_MSPLINE%ST(i,j)=new_MSPLINE%S(j,i)
+			DO i = 0, new_MSPL%po, 1
+				new_MSPL%ST(i,j)=new_MSPL%S(j,i)
 			END DO
 		END DO
 
-		ALLOCATE(new_MSPLINE%DF(0:new_MSPLINE%po,0:new_MSPLINE%po))
-		CALL generate_derivative_factors(new_MSPLINE)
+		ALLOCATE(new_MSPL%DF(0:new_MSPL%po,0:new_MSPL%po))
+		CALL generate_derivative_factors(new_MSPL)
+
+      new_MSPL%cutoff=cutoff
+      IF (cutoff) THEN
+         new_MSPL%fade=1
+      ELSE
+         new_MSPL%fade=0
+      END IF
 		
-		new_MSPLINE%flag_init=.TRUE.
+		new_MSPL%flag_init=.TRUE.
 	
-	END FUNCTION new_MSPLINE
+	END FUNCTION new_MSPL
 
 
-	SUBROUTINE MSPLINE_new(m,Nknots,La,Lb,spl)
+	SUBROUTINE MSPL_new(m,Nknots,La,Lb,spl,cutoff)
 	!create new spline object
 		IMPLICIT NONE
 		TYPE(MSPLINE) :: spl
 		INTEGER, INTENT(IN) :: Nknots, m
 		REAL(KIND=8), INTENT(IN) :: La, Lb
+      LOGICAL, INTENT(IN) :: cutoff
 		INTEGER :: i, j
 		
 		IF (MSPL_DEBUG_MODE) THEN
@@ -143,9 +154,16 @@ CONTAINS
 		ALLOCATE(spl%DF(0:spl%po,0:spl%po))
 		CALL generate_derivative_factors(spl)
 		
+      spl%cutoff=cutoff
+      IF (cutoff) THEN
+         spl%fade=1
+      ELSE
+         spl%fade=0
+      END IF
+
 		spl%flag_init=.TRUE.
 	
-	END SUBROUTINE MSPLINE_new
+	END SUBROUTINE MSPL_new
 
 
 	SUBROUTINE generate_matrix_S(spl)
@@ -245,28 +263,6 @@ CONTAINS
 	END SUBROUTINE MSPL_fit_function
 
 
-   SUBROUTINE MSPL_print_on_file(spl,deriv,filename,npoints)
-      IMPLICIT NONE
-      TYPE(MSPLINE), INTENT(IN) :: spl
-      CHARACTER (LEN=*), INTENT(IN) :: filename
-      INTEGER, INTENT(IN) :: deriv, npoints
-      INTEGER :: i
-      REAL(KIND=8) :: delta, x, val
-
-      OPEN(UNIT=159,FILE=filename,STATUS='UNKNOWN',POSITION='ASIS')
-      
-      delta=(spl%Lb-spl%La)/REAL(npoints-1,8)
-      DO i = 0, npoints-1, 1
-         x=i*delta
-         CALL MSPL_compute(spl,deriv,x,val)
-         WRITE(UNIT=159, FMT=*), x, val
-      END DO
-
-      CLOSE(UNIT=159)
-      
-   END SUBROUTINE MSPL_print_on_file
-
-
 	FUNCTION compute_MSPL(spl,deriv,r)
 	!compute the value in r of the cubic spline specified, and its first deriv derivatives
 		IMPLICIT NONE
@@ -317,7 +313,7 @@ CONTAINS
 		ri_min_r=(spl%x(j2)-r)*spl%Idelta
 
 		compute_MSPL=0.d0
-		IF ( j1 <= spl%Nknots-1 ) THEN !the -1 make the function fade to 0 when it gets to Lb
+		IF ( j1 <= spl%Nknots-spl%fade ) THEN !the -1 make the function fade to 0 when it gets to Lb
 			DO alpha = 0, spl%m, 1
 				cia=0.d0
 				IF (alpha-deriv >= 0) cia=cia+spl%ST(alpha,alpha)*((r_min_ri)**(alpha-deriv))*DABS(spl%DF(alpha,deriv))
@@ -327,7 +323,7 @@ CONTAINS
 				compute_MSPL=compute_MSPL+spl%t(alpha,j1)*cia*(spl%delta**(alpha))
 			END DO
 		END IF
-		IF ( j2 <= spl%Nknots-1 ) THEN !the -1 make the function fade to 0 when it gets to Lb
+		IF ( j2 <= spl%Nknots-spl%fade ) THEN !the -1 make the function fade to 0 when it gets to Lb
 			DO alpha = 0, spl%m, 1
 				cia=0.d0
 				IF (alpha-deriv >= 0) cia=cia+spl%ST(alpha,alpha)*((ri_min_r)**(alpha-deriv))*spl%DF(alpha,deriv)
@@ -414,7 +410,7 @@ CONTAINS
          val=0.d0
       END IF
 		
-      IF ( j1 <= spl%Nknots-1 ) THEN !the -1 make the function fade to 0 when it gets to Lb
+      IF ( j1 <= spl%Nknots-spl%fade ) THEN !the -1 make the function fade to 0 when it gets to Lb
 			DO alpha = 0, spl%m, 1
 				cia=0.d0
 				IF (alpha-deriv >= 0) cia=cia+spl%ST(alpha,alpha)*((r_min_ri)**(alpha-deriv))*DABS(spl%DF(alpha,deriv))
@@ -427,7 +423,7 @@ CONTAINS
 				val=val+spl%t(alpha,j1)*cia*(spl%delta**(alpha))
 			END DO
 		END IF
-		IF ( j2 <= spl%Nknots-1 ) THEN !the -1 make the function fade to 0 when it gets to Lb
+		IF ( j2 <= spl%Nknots-spl%fade ) THEN !the -1 make the function fade to 0 when it gets to Lb
 			DO alpha = 0, spl%m, 1
 				cia=0.d0
 				IF (alpha-deriv >= 0) cia=cia+spl%ST(alpha,alpha)*((ri_min_r)**(alpha-deriv))*spl%DF(alpha,deriv)
@@ -441,6 +437,28 @@ CONTAINS
 		END IF
 
 	END SUBROUTINE MSPL_compute
+
+
+   SUBROUTINE MSPL_print_on_file(spl,deriv,filename,npoints)
+      IMPLICIT NONE
+      TYPE(MSPLINE), INTENT(IN) :: spl
+      CHARACTER (LEN=*), INTENT(IN) :: filename
+      INTEGER, INTENT(IN) :: deriv, npoints
+      INTEGER :: i
+      REAL(KIND=8) :: delta, x, val
+
+      OPEN(UNIT=159,FILE=filename,STATUS='UNKNOWN',POSITION='ASIS')
+      
+      delta=(spl%Lb-spl%La)/REAL(npoints-1,8)
+      DO i = 0, npoints-1, 1
+         x=i*delta
+         CALL MSPL_compute(spl,deriv,x,val)
+         WRITE(UNIT=159, FMT=*), x, val
+      END DO
+
+      CLOSE(UNIT=159)
+      
+   END SUBROUTINE MSPL_print_on_file
 
 
 	SUBROUTINE MSPL_t_deriv(spl,r,t_deriv,reset)
@@ -483,7 +501,7 @@ CONTAINS
          IF (reset) t_deriv=0.d0
       END IF
 
-		IF ( j1 <= spl%Nknots-1 ) THEN
+		IF ( j1 <= spl%Nknots-spl%fade ) THEN
 			DO alpha = 0, spl%m, 1
 				cia=spl%ST(alpha,alpha)*(r_min_ri**alpha)
 				DO n = spl%m+1, spl%po, 1
@@ -492,7 +510,7 @@ CONTAINS
 				t_deriv(alpha,j1)=t_deriv(alpha,j1)+cia*(spl%delta**alpha)
 			END DO
 		END IF
-		IF ( j2 <= spl%Nknots-1 ) THEN
+		IF ( j2 <= spl%Nknots-spl%fade ) THEN
 			DO alpha = 0, spl%m, 1
 				cia=spl%ST(alpha,alpha)*(ri_min_r**alpha)
 				DO n = spl%m+1, spl%po, 1
@@ -556,7 +574,7 @@ CONTAINS
 				   r_min_ri=(dist(0)-spl%x(j1))*spl%Idelta
 				   ri_min_r=(spl%x(j2)-dist(0))*spl%Idelta
 
-				   IF ( j1 <= spl%Nknots-1 ) THEN
+				   IF ( j1 <= spl%Nknots-spl%fade ) THEN
 				   	DO alpha = 0, spl%m, 1
 				   		cia=spl%ST(alpha,alpha)*(r_min_ri**alpha)
 				   		DO n = spl%m+1, spl%po, 1
@@ -565,7 +583,7 @@ CONTAINS
 				   		t_deriv(alpha,j1)=t_deriv(alpha,j1)+cia*(spl%delta**alpha)
 				   	END DO
 				   END IF
-				   IF ( j2 <= spl%Nknots-1 ) THEN
+				   IF ( j2 <= spl%Nknots-spl%fade ) THEN
 				   	DO alpha = 0, spl%m, 1
 				   		cia=spl%ST(alpha,alpha)*(ri_min_r**alpha)
 				   		DO n = spl%m+1, spl%po, 1
@@ -613,7 +631,7 @@ CONTAINS
 
       !compute the radial gradient
       grad_r=0.d0
-		IF ( j1 <= spl%Nknots-1 ) THEN
+		IF ( j1 <= spl%Nknots-spl%fade ) THEN
 			DO alpha = 0, spl%m, 1
 				cia=0.d0
             IF (alpha-1 >= 0) cia=cia+spl%ST(alpha,alpha)*((r_min_ri)**(alpha-1))*DABS(spl%DF(alpha,1))
@@ -623,7 +641,7 @@ CONTAINS
             grad_r(alpha,1)=grad_r(alpha,1)+cia*(spl%delta**alpha)
 			END DO
 		END IF
-		IF ( j2 <= spl%Nknots-1 ) THEN
+		IF ( j2 <= spl%Nknots-spl%fade ) THEN
 			DO alpha = 0, spl%m, 1
             cia=0.d0
             IF (alpha-1 >=0) cia=cia+spl%ST(alpha,alpha)*((ri_min_r)**(alpha-1))*spl%DF(alpha,1)
@@ -725,7 +743,7 @@ CONTAINS
 
       !compute the radial gradient
       grad_r=0.d0
-		IF ( j1 <= spl%Nknots-1 ) THEN
+		IF ( j1 <= spl%Nknots-spl%fade ) THEN
 			DO alpha = 0, spl%m, 1
 				cia=0.d0
             IF (alpha-1 >= 0) cia=cia+spl%ST(alpha,alpha)*((r_min_ri)**(alpha-1))*DABS(spl%DF(alpha,1))
@@ -735,7 +753,7 @@ CONTAINS
             grad_r(alpha,1)=grad_r(alpha,1)+cia*(spl%delta**alpha)
 			END DO
 		END IF
-		IF ( j2 <= spl%Nknots-1 ) THEN
+		IF ( j2 <= spl%Nknots-spl%fade ) THEN
 			DO alpha = 0, spl%m, 1
             cia=0.d0
             IF (alpha-1 >=0) cia=cia+spl%ST(alpha,alpha)*((ri_min_r)**(alpha-1))*spl%DF(alpha,1)
@@ -747,7 +765,7 @@ CONTAINS
 		END IF
       !compute the radial laplacian
       lapl_r=0.d0
-		IF ( j1 <= spl%Nknots-1 ) THEN
+		IF ( j1 <= spl%Nknots-spl%fade ) THEN
 			DO alpha = 0, spl%m, 1
 				cia=0.d0
             IF (alpha-2 >= 0) cia=cia+spl%ST(alpha,alpha)*((r_min_ri)**(alpha-2))*DABS(spl%DF(alpha,2))
@@ -757,7 +775,7 @@ CONTAINS
             lapl_r(alpha,1)=lapl_r(alpha,1)+cia*(spl%delta**alpha)
 			END DO
 		END IF
-		IF ( j2 <= spl%Nknots-1 ) THEN
+		IF ( j2 <= spl%Nknots-spl%fade ) THEN
 			DO alpha = 0, spl%m, 1
             cia=0.d0
             IF (alpha-2 >=0) cia=cia+spl%ST(alpha,alpha)*((ri_min_r)**(alpha-2))*spl%DF(alpha,2)
@@ -819,7 +837,7 @@ CONTAINS
 
       !compute the radial gradient
       grad_r=0.d0
-		IF ( j1 <= spl%Nknots-1 ) THEN
+		IF ( j1 <= spl%Nknots-spl%fade ) THEN
 			DO alpha = 0, spl%m, 1
 				cia=0.d0
             IF (alpha-1 >= 0) cia=cia+spl%ST(alpha,alpha)*((r_min_ri)**(alpha-1))*DABS(spl%DF(alpha,1))
@@ -829,7 +847,7 @@ CONTAINS
             grad_r(alpha,1)=grad_r(alpha,1)+cia*(spl%delta**alpha)
 			END DO
 		END IF
-		IF ( j2 <= spl%Nknots-1 ) THEN
+		IF ( j2 <= spl%Nknots-spl%fade ) THEN
 			DO alpha = 0, spl%m, 1
             cia=0.d0
             IF (alpha-1 >=0) cia=cia+spl%ST(alpha,alpha)*((ri_min_r)**(alpha-1))*spl%DF(alpha,1)
@@ -841,7 +859,7 @@ CONTAINS
 		END IF
       !compute the radial laplacian
       lapl_r=0.d0
-		IF ( j1 <= spl%Nknots-1 ) THEN
+		IF ( j1 <= spl%Nknots-spl%fade ) THEN
 			DO alpha = 0, spl%m, 1
 				cia=0.d0
             IF (alpha-2 >= 0) cia=cia+spl%ST(alpha,alpha)*((r_min_ri)**(alpha-2))*DABS(spl%DF(alpha,2))
@@ -851,7 +869,7 @@ CONTAINS
             lapl_r(alpha,1)=lapl_r(alpha,1)+cia*(spl%delta**alpha)
 			END DO
 		END IF
-		IF ( j2 <= spl%Nknots-1 ) THEN
+		IF ( j2 <= spl%Nknots-spl%fade ) THEN
 			DO alpha = 0, spl%m, 1
             cia=0.d0
             IF (alpha-2 >=0) cia=cia+spl%ST(alpha,alpha)*((ri_min_r)**(alpha-2))*spl%DF(alpha,2)
