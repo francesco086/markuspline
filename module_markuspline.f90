@@ -39,17 +39,17 @@ CONTAINS
 		
 		IF (MSPL_DEBUG_MODE) THEN
 			IF (Nknots < 1) THEN
-				PRINT *, "### MSPL_ERROR ### invoked by new_MSPLINE"
+				PRINT *, "### MSPL_ERROR ### invoked by new_MSPL"
 				PRINT *, "Nknots must be greater than zero"
 				STOP
 			END IF
 			IF (m < 0) THEN
-				PRINT *, "### MSPL_ERROR ### invoked by new_MSPLINE"
+				PRINT *, "### MSPL_ERROR ### invoked by new_MSPL"
 				PRINT *, "m must be equal or greater than zero"
 				STOP
 			END IF
          IF (La>=Lb) THEN
-            PRINT *, "### MSPL_ERROR ### invoked by new_MSPLINE"
+            PRINT *, "### MSPL_ERROR ### invoked by new_MSPL"
             PRINT *, "LB must be greater than LA"
             STOP
          END IF
@@ -108,17 +108,17 @@ CONTAINS
 		
 		IF (MSPL_DEBUG_MODE) THEN
 			IF (Nknots < 1) THEN
-				PRINT *, "### MSPL_ERROR ### invoked by spl"
+				PRINT *, "### MSPL_ERROR ### invoked by new_MSPL"
 				PRINT *, "Nknots must be greater than zero"
 				STOP
 			END IF
 			IF (m < 0) THEN
-				PRINT *, "### MSPL_ERROR ### invoked by spl"
+				PRINT *, "### MSPL_ERROR ### invoked by new_MSPL"
 				PRINT *, "m must be equal or greater than zero"
 				STOP
 			END IF
          IF (La>=Lb) THEN
-            PRINT *, "### MSPL_ERROR ### invoked by new_MSPLINE"
+            PRINT *, "### MSPL_ERROR ### invoked by new_MSPL"
             PRINT *, "LB must be greater than LA"
             STOP
          END IF
@@ -447,7 +447,25 @@ CONTAINS
       INTEGER :: i
       REAL(KIND=8) :: delta, x, val
 
-      OPEN(UNIT=159,FILE=filename,STATUS='UNKNOWN',POSITION='ASIS')
+		IF (MSPL_DEBUG_MODE) THEN
+			IF (deriv < 0) THEN
+				PRINT *, "### MSPL_ERROR ### invoked by MSPL_print_on_file"
+				PRINT *, "deriv must be greater than zero"
+				STOP
+			END IF
+         IF (npoints<2) THEN
+            PRINT *, "### MSPL_ERROR ### invoked by MSPL_print_on_file"
+            PRINT *, "npoints must be greater or equal to two"
+            STOP
+         END IF
+		END IF
+
+      OPEN(UNIT=159,FILE=filename,STATUS='UNKNOWN',POSITION='ASIS',IOSTAT=i)
+      IF (i/=0) THEN
+				PRINT *, "### MSPL_ERROR ### invoked by MSPL_print_on_file"
+				PRINT *, "error in opening the file"
+				STOP
+      END IF
       
       delta=(spl%Lb-spl%La)/REAL(npoints-1,8)
       DO i = 0, npoints-1, 1
@@ -456,7 +474,12 @@ CONTAINS
          WRITE(UNIT=159, FMT=*), x, val
       END DO
 
-      CLOSE(UNIT=159)
+      CLOSE(UNIT=159,IOSTAT=i)
+      IF (i/=0) THEN
+				PRINT *, "### MSPL_ERROR ### invoked by MSPL_print_on_file"
+				PRINT *, "error in closing the file"
+				STOP
+      END IF
       
    END SUBROUTINE MSPL_print_on_file
 
