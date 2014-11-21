@@ -1,0 +1,9 @@
+build.sh
+*.o
+*.mod
+*.a
+PROMEMORIA
+test/
+Documentation/*
+
+!Documentation/markuspline-doc.pdf
