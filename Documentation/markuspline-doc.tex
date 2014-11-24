@@ -1,0 +1,246 @@
+\documentclass[11pt,a4paper,twoside]{article}
+
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage[english]{babel}
+\usepackage{graphicx}
+\usepackage{latexsym,amsmath,amssymb,amsthm}
+\usepackage{makeidx}
+\usepackage[usenames,dvipsnames]{color}
+\usepackage[unicode=true,colorlinks=true,linkcolor=RoyalBlue,citecolor=RoyalBlue]{hyperref}
+\usepackage{natbib}
+\usepackage{lipsum}
+
+\title{The Markuspline Fortran Module}
+\author{Francesco Calcavecchia}
+
+\makeindex
+
+
+\begin{document}
+\maketitle
+
+The \verb+markuspline+ Fortran module follows the recipe of Ref. \cite{Holzmann2005111} for representing a spline.
+
+The module \verb+markuspline+ depends on the LAPACK library.
+
+The following is a short user's documentation.
+
+\section{Declaration of the module}
+First of all one has to declare the utilization of the \verb+markuspline+ module, using the instruction\\\verb+USE markuspline+\\which has to be inserted just before the \verb+IMPLICIT NONE+ command in any \verb+PROGRAM+, \verb+SUBROUTINE+, \verb+FUNCTION+, or \verb+MODULE+.
+
+\section{Spline's declaration}
+In the following we will use the variable name \verb+spl+ in our examples.
+A spline \verb+spl+ must be declared as
+\begin{verbatim}
+TYPE(MSPLINE) :: spl
+\end{verbatim}
+
+\section{Spline's initialization}
+As first step, the spline should be initialized, by using the command
+\begin{verbatim}
+spl=new_MSPL(M= , NKNOTS= , LA= , LB= , CUTOFF= )
+\end{verbatim}
+where \verb+M+ and \verb+NKNOTS+ are two \verb+INTEGER+s which refer to $m$ and $N_{\text{spline}}$ in \cite{Holzmann2005111}, while \verb+LA+ and \verb+LB+ are two \verb+REAL(KIND=8)+ which represent the range on which the spline is defined (typically \verb+LA=0.d0+). Finally, \verb+CUTOFF+ is a \verb+LOGICAL+ which specifies whether the spline should smoothly goes to zero at \verb+LB+ or not.
+Alternatively, one can use the subroutine
+\begin{verbatim}
+CALL MSPL_new(M= , NKNOTS= , LA= , LB= , SPL=spl, CUTOFF= )
+\end{verbatim}
+After the initialization, the spline can be used.
+One has access to the following internal variables:
+\begin{itemize}
+\item \verb+LOGICAL :: spl%flag_init+, it indicates whether the \verb+MSPLINE+ has been initialized or not (by using \verb+new_MSPLINE+ or \verb+MSPLINE_new+);
+\item \verb+INTEGER :: spl%m+;
+\item \verb+INTEGER :: spl%Nknots+;
+\item \verb+REAL(KIND=8) :: spl%La+;
+\item \verb+REAL(KIND=8) :: spl%Lb+;
+\item \begin{verbatim}REAL(KIND=8) :: spl%x(-1:spl%Nknots+1)\end{verbatim}The grid of the spline. The index \verb+0+ corresponds to \verb+spl%La+ and the index \verb+spl%Nknots+ to \verb+spl%Lb+;
+\item \verb+REAL(KIND=8) :: spl%delta+\\The distance between two consecutive points in the grid;
+\item \verb+REAL(KIND=8) :: spl%t(0:spl%m,0:spl%Nknots)+\\The $t$ matrix in reference \cite{Holzmann2005111} but with exchanged indexes (or, in other words, is the transposed matrix), which by default is initialized to zero by \verb+new_MSPLINE+ and \verb+MSPLINE_new+;
+\item \verb+LOGICAL :: spl%cutoff+.
+\end{itemize}
+
+\section{Fit a function}
+At this point one can set the \verb+t+ matrix.
+The \verb+markuspline+ module provide a tool to fit any given function of the form:
+\begin{verbatim}
+FUNCTION f(i,x)
+   REAL(KIND=8) :: f
+   INTEGER, INTENT(IN) :: i
+   REAL(KIND=8), INTENT(IN) :: x
+END FUNCTION f
+\end{verbatim}
+To accomplish this, it is sufficient to invoke the following subroutine
+\begin{verbatim}
+CALL MSPL_fit_function(SPL=spl,F=f)
+\end{verbatim}
+
+\section{Compute the spline and its derivatives}
+After that the spline has been set, its value in any $\verb!r!\in[\verb!spl%La!,\verb!spl%Lb!]$ can be computed by invoking the function
+\begin{verbatim}
+compute_MSPL(SPL=spl, DERIV=0, R=r)
+\end{verbatim}
+which returns a \verb+REAL(KIND=8)+.
+The derivatives of the spline can be computed simply by setting the value of \verb+DERIV+ accordingly (\verb+DERIV=1+ for the first derivative, \verb+DERIV=2+ for the second derivative, etc.).
+Alternatively, the value of the spline function and of its derivatives can be computed by means of the subroutine
+\begin{verbatim}
+CALL MSPL_compute(SPL=spl, DERIV= , R=r, VAL=val)
+\end{verbatim}
+where \verb+val+ is a \verb+REAL(KIND=8)+. If one wants to accumulate the computed value in the variable \verb+val+, one can add the optional argument \verb+RESET=.FALSE.+, e.g.
+\begin{verbatim}
+CALL MSPL_compute(SPL=spl,DERIV= ,R=r,VAL=val,RESET=.FALSE.)
+\end{verbatim}
+This is equivalent to the instruction
+\begin{verbatim}
+val=val+compute_MSPL(SPL=spl,DERIV=0,R=r)
+\end{verbatim}
+
+\section{Print on file}
+It is possible to print on file the values of the spline or its derivatives.
+This can be useful in order to visualize it.
+To do so, use
+\begin{verbatim}
+CALL MSPL_print_on_file(SPL= , DERIV= , FILENAME= , NPOINTS= )
+\end{verbatim}
+where \verb+DERIV+ and \verb+NPOINTS+ are \verb+INTEGER+s, and \verb+FILENAME+ is a string containing the name of the file where the spline values should be stored.
+As a result, a file with \verb+NPOINTS+ rows containing the position $\verb!r! \in [\verb!SPL%La!, \verb!SPL%Lb!]$ and the value of the spline $\verb!SPL!(\verb!r!)$.
+
+\section{Parameter derivative of the spline}
+It is also possible to compute the parameter (or variational) derivatives with respect to the $t$ matrix.
+In particular, the subroutine
+\begin{verbatim}
+CALL MSPL_t_deriv(SPL=spl,R=r,T_DERIV=td)
+\end{verbatim}
+assigns to the matrix \verb+td+, defined as
+\begin{verbatim}
+REAL(KIND=8) :: td(0:spl%m,0:spl%Nknots)
+\end{verbatim}
+the derivatives' matrix
+$$
+\verb!td(i,j)! = \frac{\partial}{\partial t_{ij}} \verb!spl!(\verb!r!)
+$$
+If one wants to accumulate the derivatives on top of the pre-existing \verb+td+ matrix, it is sufficient to add the optional variable \verb+RESET=.FALSE.+ to the arguments of the subroutine, e.g
+\begin{verbatim}
+CALL MSPL_t_deriv(SPL=spl,R=r,T_DERIV=td,RESET=.FALSE.)
+\end{verbatim}
+In this way
+$$
+\verb!td(i,j)! := \verb!td(i,j)! + \frac{\partial}{\partial t_{ij}} \verb!spl!(\verb!r!)
+$$
+
+\subsection{Parameter derivative for particles in a simulation box}
+\label{t_deriv_npart}
+The \verb+markuspline+ module contains a subroutine which computes the variational derivatives for all the distances between \verb+n+ particles in a \verb+d+ dimensional space simulation box with sizes \verb+L=(\Lx,Ly, ... \)+.
+If we label the particles coordinates as \verb+X+, the invocation reads
+\begin{verbatim}
+CALL MSPL_boxNpart_t_deriv(SPL=spl,R=X,NDIM=d,NPART=n,LBOX=L,
+                                                     T_DERIV=td)
+\end{verbatim}
+where \verb+n+ and \verb+d+ are \verb+INTEGER+s, whereas \verb+X(1:d,1:n)+ and \verb+L(1:d)+ are of type \verb+REAL(KIND=8)+.
+Also in this case it is possible to accumulate the values of the variational derivatives by adding the optional argument \verb+RESET=.FALSE.+
+
+\section{Gradient of the parameter derivative}
+\label{gradient}
+Suppose that the spline is computed on the distance between two particles \verb+i+ and \verb+j+, whose coordinates are represented in $\mathbb{R}^{\verb!d!}$:
+$$
+\verb!r! = || \mathbf{r}_j - \mathbf{r}_i ||
+$$
+It is possible to compute the quantities
+$$
+\verb!grad(m,n,1:d)! = \nabla_{\mathbf{j}} \frac{\partial}{\partial t_{mn}} \verb!spl!(r)
+$$
+for all the \verb+m+ and \verb+n+ by invoking
+\begin{verbatim}
+CALL MSPL_grad_t_deriv(SPL=spl,R_VEC=dist,NDIM=d,
+                                 GRAD_T_DERIV=grad[,RESET= ])
+\end{verbatim}
+where \verb+dist(0:d)+ is of type \verb+REAL(KIND=8)+ and \verb+RESET+ is the usual \verb+LOGICAL+ optional argument.
+It is important to know that \verb+dist(1:d)+ contains the vector $\mathbf{r}_j - \mathbf{r}_i$, whereas \verb+dist(0)+ contains the distance (i.e. \verb+r+).
+
+\subsection{Gradient of the parameter derivative for particles in a simulation box}
+\label{gradient_npart}
+As in Sec. \ref{t_deriv_npart}, also in this case it is possible to compute the gradient for a simulation box.
+This is done with
+\begin{verbatim}
+CALL MSPL_boxNpart_grad_t_deriv(SPL=spl, R=X, NDIM=d, NPART=n,
+                              LBOX=L, GRAD_T_DERIV=grad [, RESET= ])
+\end{verbatim}
+However, in this case the argument has different dimension:
+\begin{verbatim}
+grad(0:spl%m,0:spl%Nknots,1:d,1:n)
+\end{verbatim}
+
+\section{Laplacian of the parameter derivative}
+\label{laplacian}
+Suppose that, similarly to Sec. \ref{gradient}, we are now interested in the laplacian
+$$
+\verb!lapl(m,n,1:d)! = \nabla^2_{\mathbf{j}} \frac{\partial}{\partial t_{mn}} \verb!spl!(r)
+$$
+This can be computed with
+\begin{verbatim}
+CALL MSPL_lapl_t_deriv(SPL= , R_VEC= , NDIM= , 
+                                 LAPL_T_DERIV= [, RESET= ])
+\end{verbatim}
+where \verb+LAPL_T_DERIV(0:spl%m,0:spl%Nknots)+ is of type \verb+REAL(KIND=8)+.
+
+\section{Gradient and laplacian of the parameter derivative}
+One can simultaneously obtain the results from both Sec. \ref{gradient} and \ref{laplacian} with (i.e. both the gradient and the laplacian) with the command
+\begin{verbatim}
+CALL MSPL_grad_and_lapl_t_deriv(SPL= , R_VEC= , NDIM= , 
+                     GRAD_T_DERIV , LAPL_T_DERIV [, RESET= ])
+\end{verbatim}
+
+\subsection{Gradient and laplacian of the parameter derivative for particles in a simulation box}
+As in Sec. \ref{t_deriv_npart} and \ref{gradient_npart}, we can compute all the gradients and laplacians in a simulation box with
+\begin{verbatim}
+CALL MSPL_boxNpart_grad_and_lapl_t_deriv(SPL= , R= , NDIM= , 
+NPART= , LBOX= , GRAD_T_DERIV= , LAPL_T_DERIV= [, RESET= ])
+\end{verbatim}
+where one has to be aware of the dimensionality of the two following arrays:
+\begin{verbatim}
+GRAD_T_DERIV(0:SPL%m,0:SPL%Nknots,1:NDIM,1:NPART)
+LAPL_T_DERIV0:SPL%m,0:SPL%Nknots,1:NPART)
+\end{verbatim}
+
+\section{Carbon-copy}
+A spline can be transposed to another spline with different $m$ and $N_{\text{spline}}$, by doing a "carbon-copy".
+This can be accomplished by invoking
+\begin{verbatim}
+CALL MSPL_carbon_copy(ORIGINAL_SPL=spl_in,CC_SPL=spl_out)
+\end{verbatim}
+where \verb+spl_in+ and \verb+spl_out+ have type \verb+TYPE(MSPL)+.
+
+\section{Deallocate the spline's allocated memory}
+When the spline is of no use any more, its allocated memory can be freed by invoking
+\begin{verbatim}
+CALL MSPL_deallocate(SPL=spl)
+\end{verbatim}
+
+\section{Notes on the efficiency}
+If an instruction is called a lot of times, using the subroutine instead of the function will drastically increase the performance.
+
+\section{Debugging mode}
+A final note about the routine checks that are performed internally.
+By default, the \verb+markuspline+ module checks the input values provided by the user, in order avoid possible mistake (for example, if the user provides a $\verb!LA! \geq \verb!LB!$).
+However, these checks can be disabled with the command
+\begin{verbatim}
+CALL MSPL_change_debug_mode(DEBUG_MODE=.FALSE.)
+\end{verbatim}
+which changes the internal variable \verb+MSPL_DEBUG_MODE+ accordingly.
+This might slightly enhance the performance.
+The current value of \verb+MSPL_DEBUG_MODE+ can be obtained with the function
+\begin{verbatim}
+get_debug_mode_MSPL()
+\end{verbatim}
+
+
+
+
+
+\addcontentsline{toc}{chapter}{\bibname}
+\bibliographystyle{alpha}
+\bibliography{bibl.bib}
+
+\printindex
+
+\end{document}

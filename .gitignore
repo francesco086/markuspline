@@ -3,7 +3,11 @@ build.sh
 *.mod
 *.a
 PROMEMORIA
-test/
-Documentation/*
 
+test/*
+!test/*.f90
+
+Documentation/*
 !Documentation/markuspline-doc.pdf
+!Documentation/markuspline-doc.tex
+!Documentation/bibl.bib
