@@ -13,5 +13,7 @@ Please refer to the documentation for more informations.
 Use the following instructions:
 
    `gfortran -O3 -march=native -c module_markuspline.f90`
+
    `ar rcv libmarkuspline.a *.o`
+   
    `ranlib libmarkuspline.a`
