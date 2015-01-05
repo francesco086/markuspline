@@ -248,6 +248,21 @@ PROGRAM prova
    PRINT *, "ONE-BY-ONE GRADIENT: ", SUM(der_t5), der_t5(s1%m/2,s1%Nknots/2,ndim/2,npart/2)
    PRINT *, "ONE-BY-ONE LAPLACIAN: ", SUM(der_t7), der_t7(s1%m/2,s1%Nknots/2,npart/2)
    PRINT *, 
+
+   PRINT *, "> > > Check store and load"
+   CALL MSPL_store(SPL=s1,FILENAME="stored.dat")
+   PRINT *, s1%t(0,0:MIN(s1%Nknots,7))
+   CALL MSPL_load(SPL=s1,FILENAME="stored.dat")
+   PRINT *, s1%t(0,0:MIN(s1%Nknots,7))
+   PRINT *, 
+
+   PRINT *, "> > > Check store and load in compact format"
+   CALL MSPL_store(SPL=s1,FILENAME="stored.com",COMPACT=.TRUE.)
+   PRINT *, s1%t(0,0:MIN(s1%Nknots,7))
+   CALL MSPL_load(SPL=s1,FILENAME="stored.com",COMPACT=.TRUE.)
+   PRINT *, s1%t(0,0:MIN(s1%Nknots,7))
+   PRINT *, 
+
    
    DEALLOCATE(der_t7)
    DEALLOCATE(lapl)

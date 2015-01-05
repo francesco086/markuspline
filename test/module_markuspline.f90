@@ -2,6 +2,8 @@ MODULE markuspline
 	IMPLICIT NONE
 
 	LOGICAL, PRIVATE, SAVE :: MSPL_DEBUG_MODE=.TRUE.
+   
+   INTEGER, PARAMETER :: N_RECL=4096
 
 	TYPE MSPLINE
 		LOGICAL :: flag_init=.FALSE.     !Flag which specify whether the spline object has been allocated with new_MSPLINE or not
@@ -27,7 +29,69 @@ MODULE markuspline
 
 CONTAINS
 
+
+   SUBROUTINE MSPL_store(spl,filename,compact)
+      IMPLICIT NONE
+      TYPE(MSPLINE), INTENT(IN) :: spl
+      LOGICAL, INTENT(IN), OPTIONAL :: compact
+      CHARACTER (LEN=*), INTENT(IN) :: filename
+      
+		IF (.NOT. spl%flag_init) THEN
+			PRINT *, "### MSPL_ERROR ###  invoked by MSPL_store"
+			PRINT *, "The spline has not been initialized"
+			STOP
+		END IF
+         
+      IF (PRESENT(compact).AND.compact) THEN
+         OPEN(UNIT=2,FILE=filename,STATUS='UNKNOWN',POSITION='ASIS')
+         WRITE(UNIT=2, FMT=*), spl%flag_init,spl%m,spl%Nknots,spl%La,spl%Lb &
+            ,spl%x &
+            ,spl%t &
+            ,spl%delta,spl%Idelta,spl%po,spl%S,spl%ST,spl%DF
+         CLOSE(UNIT=2,STATUS='KEEP')
+      ELSE
+         OPEN(UNIT=2,FILE=filename,STATUS='UNKNOWN',POSITION='ASIS')
+         WRITE(UNIT=2, FMT=*), spl%flag_init,spl%m,spl%Nknots,spl%La,spl%Lb
+         WRITE(UNIT=2, FMT=*), spl%x
+         WRITE(UNIT=2, FMT=*), spl%t
+         WRITE(UNIT=2, FMT=*), spl%delta,spl%Idelta,spl%po,spl%S,spl%ST,spl%DF
+         CLOSE(UNIT=2)
+      END IF
+
+   END SUBROUTINE MSPL_store
+
+
+   SUBROUTINE MSPL_load(spl,filename,compact)
+      IMPLICIT NONE
+      TYPE(MSPLINE) :: spl
+      LOGICAL, INTENT(IN), OPTIONAL :: compact
+      CHARACTER (LEN=*), INTENT(IN) :: filename
+      
+		IF (.NOT. spl%flag_init) THEN
+			PRINT *, "### MSPL_ERROR ###  invoked by MSPL_load"
+			PRINT *, "The spline has not been initialized"
+			STOP
+		END IF
+         
+      IF (PRESENT(compact).AND.compact) THEN
+         OPEN(UNIT=2,FILE=filename,STATUS='OLD')
+         READ(UNIT=2, FMT=*), spl%flag_init,spl%m,spl%Nknots,spl%La,spl%Lb &
+            ,spl%x &
+            ,spl%t &
+            ,spl%delta,spl%Idelta,spl%po,spl%S,spl%ST,spl%DF
+         CLOSE(UNIT=2,STATUS='KEEP')
+      ELSE
+         OPEN(UNIT=2,FILE=filename,STATUS='OLD')
+         READ(UNIT=2, FMT=*), spl%flag_init,spl%m,spl%Nknots,spl%La,spl%Lb
+         READ(UNIT=2, FMT=*), spl%x
+         READ(UNIT=2, FMT=*), spl%t
+         READ(UNIT=2, FMT=*), spl%delta,spl%Idelta,spl%po,spl%S,spl%ST,spl%DF
+         CLOSE(UNIT=2)
+      END IF
+
+   END SUBROUTINE MSPL_load
 	
+
 	FUNCTION new_MSPL(m,Nknots,La,Lb,cutoff)
 	!create new spline object
 		IMPLICIT NONE
@@ -63,7 +127,7 @@ CONTAINS
 		new_MSPL%La=La
 		new_MSPL%Lb=Lb
 		new_MSPL%delta=(Lb-La)/REAL(Nknots,8)
-		new_MSPL%Idelta=1.d0/new_MSPL%delta
+   new_MSPL%Idelta=1.d0/new_MSPL%delta
 
 		ALLOCATE(new_MSPL%x(-1:Nknots+1))
 		DO i = -1, new_MSPL%Nknots+1, 1
