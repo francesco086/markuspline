@@ -60,6 +60,27 @@ One has access to the following internal variables:
 \item \verb+LOGICAL :: spl%cutoff+.
 \end{itemize}
 
+\section{Store and Load a spline}
+It is possible to store in a file a \verb+MSPLINE+ variable by using the subroutine
+\begin{verbatim}
+CALL MSPL_store(SPL= , FILENAME= [, COMPACT= ])
+\end{verbatim}
+where \verb+COMPACT+ is an optional \verb+LOGICAL+ that states if the spline has to be stored in a compact form.
+In the non-compact form the file is organized as following:
+\begin{verbatim}
+spl%flag_init,spl%m,spl%Nknots,spl%La,spl%Lb
+spl%x
+spl%t
+spl%delta,spl%Idelta,spl%po,spl%S,spl%ST,spl%DF
+\end{verbatim}
+where the last line contains internal variables which should be of no interest for the user.
+In a compact format the file contains the variables in the same order, but all in one line.
+
+A stored spline can be loaded by means of
+\begin{verbatim}
+CALL MSPL_load(SPL= , FILENAME= [, COMPACT= ])
+\end{verbatim}
+
 \section{Fit a function}
 At this point one can set the \verb+t+ matrix.
 The \verb+markuspline+ module provide a tool to fit any given function of the form:
