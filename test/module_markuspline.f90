@@ -2,8 +2,6 @@ MODULE markuspline
 	IMPLICIT NONE
 
 	LOGICAL, PRIVATE, SAVE :: MSPL_DEBUG_MODE=.TRUE.
-   
-   INTEGER, PARAMETER :: N_RECL=4096
 
 	TYPE MSPLINE
 		LOGICAL :: flag_init=.FALSE.     !Flag which specify whether the spline object has been allocated with new_MSPLINE or not
@@ -348,16 +346,6 @@ CONTAINS
 				PRINT *, "The spline has not been initialized"
 				STOP
 			END IF
-			IF ( r < spl%La-spl%delta ) THEN
-				PRINT *, "### MSPL_ERROR ###  invoked by compute_MSPL"
-				PRINT *, "R is too small, outside the range"
-				STOP
-			END IF
-			IF ( r > spl%Lb+spl%delta ) THEN
-				PRINT *, "### MSPL_ERROR ###  invoked by compute_MSPL"
-				PRINT *, "R is too large, outside the range"
-				STOP
-			END IF
          IF (deriv<0) THEN
             PRINT *, "### MSPL_ERROR ###  invoked by compute_MSPL"
             PRINT *, "DERIV must be greater than zero"
@@ -564,16 +552,6 @@ CONTAINS
 		   	PRINT *, "The spline has not been initialized"
 		   	STOP
 		   END IF
-			IF ( r < spl%La-spl%delta ) THEN
-				PRINT *, "### MSPL_ERROR ### invoked by MSPL_t_deriv"
-				PRINT *, "R is too small, outside the range"
-				STOP
-			END IF
-			IF ( r > spl%Lb+spl%delta ) THEN
-				PRINT *, "### MSPL_ERROR ### invoked by MSPL_t_deriv"
-				PRINT *, "R is too large, outside the range"
-				STOP
-			END IF
       END IF
 		
 		ratio=r/spl%delta
