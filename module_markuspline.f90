@@ -61,9 +61,11 @@ CONTAINS
 
    SUBROUTINE MSPL_load(spl,filename,compact)
       IMPLICIT NONE
+      INTEGER, PARAMETER :: WAIT_MAX_SEC=30
       TYPE(MSPLINE) :: spl
       LOGICAL, INTENT(IN), OPTIONAL :: compact
       CHARACTER (LEN=*), INTENT(IN) :: filename
+      INTEGER :: ioerr, cont_wait
       
 		IF (.NOT. spl%flag_init) THEN
 			PRINT *, "### MSPL_ERROR ###  invoked by MSPL_load"
@@ -71,20 +73,49 @@ CONTAINS
 			STOP
 		END IF
          
+      ioerr=-1
+      cont_wait=0
       IF (PRESENT(compact).AND.compact) THEN
-         OPEN(UNIT=2,FILE=filename,STATUS='OLD')
-         READ(UNIT=2, FMT=*), spl%flag_init,spl%m,spl%Nknots,spl%La,spl%Lb &
-            ,spl%x &
-            ,spl%t &
-            ,spl%delta,spl%Idelta,spl%po,spl%S,spl%ST,spl%DF
-         CLOSE(UNIT=2,STATUS='KEEP')
+         DO WHILE ((ioerr<0).AND.(cont_wait<WAIT_MAX_SEC))
+            OPEN(UNIT=2,FILE=filename,STATUS='OLD')
+            READ(UNIT=2, FMT=*, IOSTAT=ioerr), spl%flag_init,spl%m,spl%Nknots,spl%La,spl%Lb &
+               ,spl%x &
+               ,spl%t &
+               ,spl%delta,spl%Idelta,spl%po,spl%S,spl%ST,spl%DF
+            IF (ioerr>0) THEN
+               PRINT *, "### MSPL_ERROR ###  invoked by MSPL_load"
+               PRINT *, "READ the file ",filename," impossible, IOSTAT=", ioerr
+               STOP
+            END IF
+            CLOSE(UNIT=2,STATUS='KEEP')
+            IF (ioerr<0) THEN
+               CALL SLEEP(1)
+               cont_wait=cont_wait+1
+            END IF
+         END DO
       ELSE
-         OPEN(UNIT=2,FILE=filename,STATUS='OLD')
-         READ(UNIT=2, FMT=*), spl%flag_init,spl%m,spl%Nknots,spl%La,spl%Lb
-         READ(UNIT=2, FMT=*), spl%x
-         READ(UNIT=2, FMT=*), spl%t
-         READ(UNIT=2, FMT=*), spl%delta,spl%Idelta,spl%po,spl%S,spl%ST,spl%DF
-         CLOSE(UNIT=2)
+         DO WHILE ((ioerr<0).AND.(cont_wait<WAIT_MAX_SEC))
+            OPEN(UNIT=2,FILE=filename,STATUS='OLD')
+            READ(UNIT=2, FMT=*, IOSTAT=ioerr), spl%flag_init,spl%m,spl%Nknots,spl%La,spl%Lb
+            IF (ioerr==0) READ(UNIT=2, FMT=*, IOSTAT=ioerr), spl%x
+            IF (ioerr==0) READ(UNIT=2, FMT=*, IOSTAT=ioerr), spl%t
+            IF (ioerr==0) READ(UNIT=2, FMT=*, IOSTAT=ioerr), spl%delta,spl%Idelta,spl%po,spl%S,spl%ST,spl%DF
+            IF (ioerr>0) THEN
+               PRINT *, "### MSPL_ERROR ###  invoked by MSPL_load"
+               PRINT *, "READ the file ",filename," impossible, IOSTAT=", ioerr
+               STOP
+            END IF
+            CLOSE(UNIT=2)
+            IF (ioerr<0) THEN
+               CALL SLEEP(1)
+               cont_wait=cont_wait+1
+            END IF
+         END DO
+      END IF
+      IF (cont_wait>=WAIT_MAX_SEC) THEN
+         PRINT *, "### MSPL_ERROR ###  invoked by MSPL_load"
+         PRINT *, "READ the file ",filename," impossible because the file is incomplete. Already waited ",WAIT_MAX_SEC," seconds."
+         STOP
       END IF
 
    END SUBROUTINE MSPL_load
