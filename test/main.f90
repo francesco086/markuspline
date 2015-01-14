@@ -13,7 +13,7 @@ PROGRAM prova
 	REAL(KIND=8) :: x, y, delta
 	REAL(KIND=8) :: t1, t2
 	REAL(KIND=8) :: v1, v2, dv
-	TYPE(MSPLINE) :: s1, s2
+	TYPE(MSPLINE) :: s1, s2, s3
 	REAL(KIND=8), ALLOCATABLE :: der_t(:,:), der_t2(:,:)
    INTEGER, PARAMETER :: ndim=3, npart=7
    REAL(KIND=8) :: R(1:ndim,npart), Lbox(1:ndim), dist(0:ndim)
@@ -252,17 +252,9 @@ PROGRAM prova
    PRINT *, "> > > Check store and load"
    CALL MSPL_store(SPL=s1,FILENAME="stored.dat")
    PRINT *, s1%t(0,0:MIN(s1%Nknots,7))
-   CALL MSPL_load(SPL=s1,FILENAME="stored.dat")
+   CALL MSPL_load(SPL=s3,FILENAME="stored.dat")
    PRINT *, s1%t(0,0:MIN(s1%Nknots,7))
    PRINT *, 
-
-   PRINT *, "> > > Check store and load in compact format"
-   CALL MSPL_store(SPL=s1,FILENAME="stored.com",COMPACT=.TRUE.)
-   PRINT *, s1%t(0,0:MIN(s1%Nknots,7))
-   CALL MSPL_load(SPL=s1,FILENAME="stored.com",COMPACT=.TRUE.)
-   PRINT *, s1%t(0,0:MIN(s1%Nknots,7))
-   PRINT *, 
-
    
    DEALLOCATE(der_t7)
    DEALLOCATE(lapl)

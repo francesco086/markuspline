@@ -7,6 +7,7 @@ MODULE markuspline
 		LOGICAL :: flag_init=.FALSE.     !Flag which specify whether the spline object has been allocated with new_MSPLINE or not
 		INTEGER :: Nknots   !Number of knots minus one (the index zero is reserved for r=0)
 		INTEGER :: m	     !It specifies the polynomial order, which will be 2*m+1
+      LOGICAL :: cutoff   !Specifies whether the spline goes smoothly to zero at Lb or not
 		INTEGER, PRIVATE :: po			!Polynomial order
 		REAL(KIND=8) :: La, Lb			!They specify the range of x over which the spline has been built
 		REAL(KIND=8) :: delta                      !Distance between knots,
@@ -16,7 +17,6 @@ MODULE markuspline
 		REAL(KIND=8), PRIVATE, ALLOCATABLE :: S(:,:)       !Matrix necessary to compute the spline
 		REAL(KIND=8), PRIVATE, ALLOCATABLE :: ST(:,:)        !S matrix transposed, useful for improved performance
 		REAL(KIND=8), PRIVATE, ALLOCATABLE :: DF(:,:)    !Factors necessary for the computation of the derivatives
-      LOGICAL :: cutoff                                !Specifies whether the spline goes smoothly to zero at Lb or not
       INTEGER, PRIVATE :: fade                         !If 1 the spline vanish to zero at Lb, if 0 it does not
 	END TYPE MSPLINE
 
@@ -28,10 +28,9 @@ MODULE markuspline
 CONTAINS
 
 
-   SUBROUTINE MSPL_store(spl,filename,compact)
+   SUBROUTINE MSPL_store(spl,filename)
       IMPLICIT NONE
       TYPE(MSPLINE), INTENT(IN) :: spl
-      LOGICAL, INTENT(IN), OPTIONAL :: compact
       CHARACTER (LEN=*), INTENT(IN) :: filename
       
 		IF (.NOT. spl%flag_init) THEN
@@ -40,78 +39,40 @@ CONTAINS
 			STOP
 		END IF
          
-      IF (PRESENT(compact).AND.compact) THEN
-         OPEN(UNIT=2,FILE=filename,STATUS='UNKNOWN',POSITION='ASIS')
-         WRITE(UNIT=2, FMT=*), spl%flag_init,spl%m,spl%Nknots,spl%La,spl%Lb &
-            ,spl%x &
-            ,spl%t &
-            ,spl%delta,spl%Idelta,spl%po,spl%S,spl%ST,spl%DF
-         CLOSE(UNIT=2,STATUS='KEEP')
-      ELSE
-         OPEN(UNIT=2,FILE=filename,STATUS='UNKNOWN',POSITION='ASIS')
-         WRITE(UNIT=2, FMT=*), spl%flag_init,spl%m,spl%Nknots,spl%La,spl%Lb
-         WRITE(UNIT=2, FMT=*), spl%x
-         WRITE(UNIT=2, FMT=*), spl%t
-         WRITE(UNIT=2, FMT=*), spl%delta,spl%Idelta,spl%po,spl%S,spl%ST,spl%DF
-         CLOSE(UNIT=2)
-      END IF
+      OPEN(UNIT=2,FILE=filename,STATUS='UNKNOWN',POSITION='ASIS')
+      WRITE(UNIT=2, FMT=*), spl%m,spl%Nknots,spl%La,spl%Lb,spl%cutoff
+      WRITE(UNIT=2, FMT=*), spl%t
+      CLOSE(UNIT=2)
 
    END SUBROUTINE MSPL_store
 
 
-   SUBROUTINE MSPL_load(spl,filename,compact)
+   SUBROUTINE MSPL_load(spl,filename)
       IMPLICIT NONE
       INTEGER, PARAMETER :: WAIT_MAX_SEC=30
       TYPE(MSPLINE) :: spl
-      LOGICAL, INTENT(IN), OPTIONAL :: compact
       CHARACTER (LEN=*), INTENT(IN) :: filename
       INTEGER :: ioerr, cont_wait
       
-		IF (.NOT. spl%flag_init) THEN
-			PRINT *, "### MSPL_ERROR ###  invoked by MSPL_load"
-			PRINT *, "The spline has not been initialized"
-			STOP
-		END IF
-         
       ioerr=-1
       cont_wait=0
-      IF (PRESENT(compact).AND.compact) THEN
-         DO WHILE ((ioerr<0).AND.(cont_wait<WAIT_MAX_SEC))
-            OPEN(UNIT=2,FILE=filename,STATUS='OLD')
-            READ(UNIT=2, FMT=*, IOSTAT=ioerr), spl%flag_init,spl%m,spl%Nknots,spl%La,spl%Lb &
-               ,spl%x &
-               ,spl%t &
-               ,spl%delta,spl%Idelta,spl%po,spl%S,spl%ST,spl%DF
-            IF (ioerr>0) THEN
-               PRINT *, "### MSPL_ERROR ###  invoked by MSPL_load"
-               PRINT *, "READ the file ",filename," impossible, IOSTAT=", ioerr
-               STOP
-            END IF
-            CLOSE(UNIT=2,STATUS='KEEP')
-            IF (ioerr<0) THEN
-               CALL SLEEP(1)
-               cont_wait=cont_wait+1
-            END IF
-         END DO
-      ELSE
-         DO WHILE ((ioerr<0).AND.(cont_wait<WAIT_MAX_SEC))
-            OPEN(UNIT=2,FILE=filename,STATUS='OLD')
-            READ(UNIT=2, FMT=*, IOSTAT=ioerr), spl%flag_init,spl%m,spl%Nknots,spl%La,spl%Lb
-            IF (ioerr==0) READ(UNIT=2, FMT=*, IOSTAT=ioerr), spl%x
-            IF (ioerr==0) READ(UNIT=2, FMT=*, IOSTAT=ioerr), spl%t
-            IF (ioerr==0) READ(UNIT=2, FMT=*, IOSTAT=ioerr), spl%delta,spl%Idelta,spl%po,spl%S,spl%ST,spl%DF
-            IF (ioerr>0) THEN
-               PRINT *, "### MSPL_ERROR ###  invoked by MSPL_load"
-               PRINT *, "READ the file ",filename," impossible, IOSTAT=", ioerr
-               STOP
-            END IF
-            CLOSE(UNIT=2)
-            IF (ioerr<0) THEN
-               CALL SLEEP(1)
-               cont_wait=cont_wait+1
-            END IF
-         END DO
-      END IF
+      DO WHILE ((ioerr<0).AND.(cont_wait<WAIT_MAX_SEC))
+         OPEN(UNIT=2,FILE=filename,STATUS='OLD')
+         READ(UNIT=2, FMT=*, IOSTAT=ioerr), spl%m,spl%Nknots,spl%La,spl%Lb,spl%cutoff
+         CALL MSPL_new(spl%m,spl%Nknots,spl%La,spl%Lb,spl,spl%cutoff)
+         IF (ioerr==0) READ(UNIT=2, FMT=*, IOSTAT=ioerr), spl%t
+         IF (ioerr>0) THEN
+            PRINT *, "### MSPL_ERROR ###  invoked by MSPL_load"
+            PRINT *, "READ the file ",filename," impossible, IOSTAT=", ioerr
+            STOP
+         END IF
+         CLOSE(UNIT=2)
+         IF (ioerr<0) THEN
+            CALL SLEEP(1)
+            cont_wait=cont_wait+1
+         END IF
+      END DO
+
       IF (cont_wait>=WAIT_MAX_SEC) THEN
          PRINT *, "### MSPL_ERROR ###  invoked by MSPL_load"
          PRINT *, "READ the file ",filename," impossible because the file is incomplete. Already waited ",WAIT_MAX_SEC," seconds."
@@ -156,7 +117,7 @@ CONTAINS
 		new_MSPL%La=La
 		new_MSPL%Lb=Lb
 		new_MSPL%delta=(Lb-La)/REAL(Nknots,8)
-   new_MSPL%Idelta=1.d0/new_MSPL%delta
+      new_MSPL%Idelta=1.d0/new_MSPL%delta
 
 		ALLOCATE(new_MSPL%x(-1:Nknots+1))
 		DO i = -1, new_MSPL%Nknots+1, 1
