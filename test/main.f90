@@ -12,7 +12,7 @@ PROGRAM prova
 	INTEGER :: j1, j2
 	REAL(KIND=8) :: x, y, delta
 	REAL(KIND=8) :: t1, t2
-	REAL(KIND=8) :: v1, v2, dv
+	REAL(KIND=8) :: v1, v2, v3, dv
 	TYPE(MSPLINE) :: s1, s2, s3
 	REAL(KIND=8), ALLOCATABLE :: der_t(:,:), der_t2(:,:)
    INTEGER, PARAMETER :: ndim=3, npart=7
@@ -21,6 +21,8 @@ PROGRAM prova
    REAL(KIND=8), ALLOCATABLE :: der_t4(:,:,:,:), der_t5(:,:,:,:)
    REAL(KIND=8), ALLOCATABLE :: der_t6(:,:), lapl(:,:)
    REAL(KIND=8), ALLOCATABLE :: der_t7(:,:,:)
+   REAL(KIND=8), ALLOCATABLE :: grad_nm(:), grad_an(:)
+   REAL(KIND=8) :: lapl_nm, lapl_an
 
 	s1=new_MSPL(m=m1,La=L1,Nknots=Nknots1,Lb=L2,CUTOFF=.FALSE.)
 	CALL MSPL_fit_function(s1,trial_function)
@@ -255,7 +257,54 @@ PROGRAM prova
    CALL MSPL_load(SPL=s3,FILENAME="stored.dat")
    PRINT *, s1%t(0,0:MIN(s1%Nknots,7))
    PRINT *, 
-   
+
+   PRINT *, "> > > Check the gradient of the spline (MSPL_gradient)"
+   ALLOCATE(grad_nm(1:ndim),grad_an(1:ndim))
+   CALL RANDOM_NUMBER(dist(1:ndim))
+   dist(1:ndim)=dist(1:ndim)*(s1%Lb-s1%La)
+   dist(1:ndim)=dist(1:ndim)-(s1%Lb-s1%La)*DNINT(dist(1:ndim)/(s1%Lb-s1%La))
+   dist(0)=DSQRT(DOT_PRODUCT(dist(1:ndim),dist(1:ndim)))
+   CALL MSPL_gradient(SPL=s1,R_VEC=dist(0:ndim),NDIM=ndim,GRAD=grad_an)
+   CALL MSPL_compute(SPL=s1,R=dist(0),DERIV=0,VAL=v1)
+   DO i1 = 1, ndim, 1
+      x=dist(i1)
+      y=dist(0)
+      dist(i1)=dist(i1)+dv
+      dist(0)=DSQRT(DOT_PRODUCT(dist(1:ndim),dist(1:ndim)))
+      CALL MSPL_compute(SPL=s1,R=dist(0),DERIV=0,VAL=grad_nm(i1))
+      dist(i1)=x
+      dist(0)=y
+   END DO
+   PRINT *, "ANALYTICAL GRADIENT: ", grad_an
+   PRINT *, "NUMERICAL GRADIENT: ", (grad_nm-v1)/dv
+   PRINT *, 
+
+   PRINT *, "> > > Check the laplacian of the spline (MSPL_laplacian)"
+   CALL RANDOM_NUMBER(dist(1:ndim))
+   dist(1:ndim)=dist(1:ndim)*(s1%Lb-s1%La)
+   dist(1:ndim)=dist(1:ndim)-(s1%Lb-s1%La)*DNINT(dist(1:ndim)/(s1%Lb-s1%La))
+   dist(0)=DSQRT(DOT_PRODUCT(dist(1:ndim),dist(1:ndim)))
+   CALL MSPL_laplacian(SPL=s1,R=dist(0),NDIM=ndim,LAPL=lapl_an)
+   CALL MSPL_compute(SPL=s1,R=dist(0),DERIV=0,VAL=v2)
+   lapl_nm=0.d0
+   DO i1 = 1, ndim, 1
+      x=dist(i1)
+      y=dist(0)
+      dist(i1)=dist(i1)+dv
+      dist(0)=DSQRT(DOT_PRODUCT(dist(1:ndim),dist(1:ndim)))
+      CALL MSPL_compute(SPL=s1,R=dist(0),DERIV=0,VAL=v3)
+      dist(i1)=dist(i1)-2.d0*dv
+      dist(0)=DSQRT(DOT_PRODUCT(dist(1:ndim),dist(1:ndim)))
+      CALL MSPL_compute(SPL=s1,R=dist(0),DERIV=0,VAL=v1)
+      lapl_nm=lapl_nm+(v3-2.d0*v2+v1)/(dv*dv)
+      dist(i1)=x
+      dist(0)=y
+   END DO
+   PRINT *, "ANALYTICAL LAPLACIAN: ", lapl_an
+   PRINT *, "NUMERICAL LAPLACIAN: ", lapl_nm
+   PRINT *, 
+
+   DEALLOCATE(grad_nm,grad_an)
    DEALLOCATE(der_t7)
    DEALLOCATE(lapl)
    DEALLOCATE(der_t6)

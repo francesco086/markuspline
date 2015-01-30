@@ -458,9 +458,6 @@ CONTAINS
 			DO alpha = 0, spl%m, 1
 				cia=0.d0
 				IF (alpha-deriv >= 0) cia=cia+spl%ST(alpha,alpha)*((r_min_ri)**(alpha-deriv))*DABS(spl%DF(alpha,deriv))
-				!first development, slightly slower
-            !DO n = spl%m+1, spl%po, 1
-				!	IF (n-deriv >= 0) cia=cia+spl%ST(n,alpha)*((r_min_ri)**(n-deriv))*DABS(spl%DF(n,deriv))
 				DO n = MAX(spl%m+1,0), spl%po, 1
 					cia=cia+spl%ST(n,alpha)*((r_min_ri)**(n-deriv))*DABS(spl%DF(n,deriv))
 				END DO
@@ -471,8 +468,6 @@ CONTAINS
 			DO alpha = 0, spl%m, 1
 				cia=0.d0
 				IF (alpha-deriv >= 0) cia=cia+spl%ST(alpha,alpha)*((ri_min_r)**(alpha-deriv))*spl%DF(alpha,deriv)
-				!DO n = spl%m+1, spl%po, 1
-				!	IF (n-deriv >= 0) cia=cia+spl%ST(n,alpha)*((ri_min_r)**(n-deriv))*spl%DF(n,deriv)
             DO n = MAX(spl%m+1,0), spl%po, 1
 					cia=cia+spl%ST(n,alpha)*((ri_min_r)**(n-deriv))*spl%DF(n,deriv)
 				END DO
@@ -481,6 +476,65 @@ CONTAINS
 		END IF
 
 	END SUBROUTINE MSPL_compute
+
+
+   SUBROUTINE MSPL_gradient(spl,r_vec,ndim,grad,reset)
+      IMPLICIT NONE
+      TYPE(MSPLINE), INTENT(IN) :: spl
+      INTEGER, INTENT(IN) :: ndim
+      REAL(KIND=8), INTENT(IN) :: r_vec(0:ndim)
+      REAL(KIND=8) :: grad(1:ndim)
+      LOGICAL, OPTIONAL :: reset
+      REAL(KIND=8) :: dspl
+
+		IF (MSPL_DEBUG_MODE) THEN
+			IF (.NOT. spl%flag_init) THEN
+				PRINT *, "### MSPL_ERROR ###  invoked by MSPL_gradient"
+				PRINT *, "The spline has not been initialized"
+				STOP
+			END IF
+		END IF
+
+      IF (PRESENT(reset)) THEN
+         IF (reset) grad=0.d0
+      ELSE
+         grad=0.d0
+      END IF
+
+      CALL MSPL_compute(spl,1,r_vec(0),dspl)
+      grad(1:ndim)=grad(1:ndim)+dspl*r_vec(1:ndim)/r_vec(0)
+      
+   END SUBROUTINE MSPL_gradient
+
+
+   SUBROUTINE MSPL_laplacian(spl,r,ndim,lapl,reset)
+      IMPLICIT NONE
+      TYPE(MSPLINE), INTENT(IN) :: spl
+      REAL(KIND=8) :: r
+      INTEGER, INTENT(IN) :: ndim
+      REAL(KIND=8) :: lapl
+      LOGICAL, OPTIONAL :: reset
+      REAL(KIND=8) :: dspl, ddspl
+
+		IF (MSPL_DEBUG_MODE) THEN
+			IF (.NOT. spl%flag_init) THEN
+				PRINT *, "### MSPL_ERROR ###  invoked by MSPL_laplacian"
+				PRINT *, "The spline has not been initialized"
+				STOP
+			END IF
+		END IF
+
+      IF (PRESENT(reset)) THEN
+         IF (reset) lapl=0.d0
+      ELSE
+         lapl=0.d0
+      END IF
+
+      CALL MSPL_compute(spl,1,r,dspl)
+      CALL MSPL_compute(spl,2,r,ddspl)
+      lapl=lapl+dspl*REAL(ndim-1,8)/r+ddspl
+      
+   END SUBROUTINE MSPL_laplacian
 
 
    SUBROUTINE MSPL_print_on_file(spl,deriv,filename,npoints)

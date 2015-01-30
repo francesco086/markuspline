@@ -112,6 +112,38 @@ This is equivalent to the instruction
 val=val+compute_MSPL(SPL=spl,DERIV=0,R=r)
 \end{verbatim}
 
+\section{Compute the gradient of the spline}
+Suppose that the spline is computed on the distance between two particles \verb+i+ and \verb+j+, whose coordinates are represented in $\mathbb{R}^{\verb!d!}$:
+$$
+\verb!r! = || \mathbf{r}_j - \mathbf{r}_i ||
+$$
+It is possible to compute the gradient
+$$
+\verb!grad(1:d)! = \nabla_{\mathbf{j}} \verb!spl!(\verb!r!)
+$$
+by invoking
+\begin{verbatim}
+CALL MSPL_grad(SPL=spl,R_VEC=dist,NDIM=d,GRAD=grad[,RESET= ])
+\end{verbatim}
+where \verb+dist(0:d)+ is of type \verb+REAL(KIND=8)+ and \verb+RESET+ is the usual \verb+LOGICAL+ optional argument.
+It is important to know that \verb+dist(1:d)+ contains the vector $\mathbf{r}_j - \mathbf{r}_i$, whereas \verb+dist(0)+ contains the distance (i.e. \verb+r+).
+
+\section{Compute the laplacian of the spline}
+Suppose that the spline is computed on the distance between two particles \verb+i+ and \verb+j+, whose coordinates are represented in $\mathbb{R}^{\verb!d!}$:
+$$
+\verb!r! = || \mathbf{r}_j - \mathbf{r}_i ||
+$$
+It is possible to compute the laplacian
+$$
+\verb!lapl! = \nabla^2_{\mathbf{j}} \verb!spl!(\verb!r!)
+$$
+by invoking
+\begin{verbatim}
+CALL MSPL_laplacian(SPL=spl,R=r,NDIM=d,LAPL=lapl[,RESET= ])
+\end{verbatim}
+where \verb+r+ is of type \verb+REAL(KIND=8)+ and \verb+RESET+ is the usual \verb+LOGICAL+ optional argument.
+It is important to know that \verb+r+ contains the scalar $|| \mathbf{r}_j - \mathbf{r}_i ||$.
+
 \section{Print on file}
 It is possible to print on file the values of the spline or its derivatives.
 This can be useful in order to visualize it.
