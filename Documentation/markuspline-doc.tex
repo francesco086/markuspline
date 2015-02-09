@@ -111,6 +111,12 @@ This is equivalent to the instruction
 \begin{verbatim}
 val=val+compute_MSPL(SPL=spl,DERIV=0,R=r)
 \end{verbatim}
+For efficiency reasons it is possible to use the optional argument \verb+IDX+:
+\begin{verbatim}
+CALL MSPL_compute(SPL=spl,DERIV= ,R=r,VAL=val,RESET=.FALSE.,
+                                                       IDX=i)
+\end{verbatim}
+\verb+i+ is an \verb+INTEGER+ and if it is equal or greater than zero is used as input, otherwise it will contain a value as output. As input, \verb+IDX+ must contain the index corresponding to \verb+R+ in the \verb+spl%x+ table (i.e. \verb+FLOOR(R/spl%delta)+), otherwise this value will be computed internally and provided as output.
 
 \section{Compute the gradient of the spline}
 Suppose that the spline is computed on the distance between two particles \verb+i+ and \verb+j+, whose coordinates are represented in $\mathbb{R}^{\verb!d!}$:
@@ -123,7 +129,7 @@ $$
 $$
 by invoking
 \begin{verbatim}
-CALL MSPL_grad(SPL=spl,R_VEC=dist,NDIM=d,GRAD=grad[,RESET= ])
+CALL MSPL_gradient(SPL=spl,R_VEC=dist,NDIM=d,GRAD=grad[,RESET= ])
 \end{verbatim}
 where \verb+dist(0:d)+ is of type \verb+REAL(KIND=8)+ and \verb+RESET+ is the usual \verb+LOGICAL+ optional argument.
 It is important to know that \verb+dist(1:d)+ contains the vector $\mathbf{r}_j - \mathbf{r}_i$, whereas \verb+dist(0)+ contains the distance (i.e. \verb+r+).
@@ -143,6 +149,13 @@ CALL MSPL_laplacian(SPL=spl,R=r,NDIM=d,LAPL=lapl[,RESET= ])
 \end{verbatim}
 where \verb+r+ is of type \verb+REAL(KIND=8)+ and \verb+RESET+ is the usual \verb+LOGICAL+ optional argument.
 It is important to know that \verb+r+ contains the scalar $|| \mathbf{r}_j - \mathbf{r}_i ||$.
+
+\section{Compute the gradient and the laplacian of the spline}
+This can be done by invoking
+\begin{verbatim}
+CALL MSPL_gradient_and_laplacian(SPL=spl,R_VEC=dist,NDIM=d,
+                                 GRAD=grad,LAPL=lapl[,RESET= ])
+\end{verbatim}
 
 \section{Print on file}
 It is possible to print on file the values of the spline or its derivatives.

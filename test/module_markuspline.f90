@@ -409,7 +409,7 @@ CONTAINS
 
    !END SUBROUTINE find_index
 	
-	SUBROUTINE MSPL_compute(spl,deriv,r,val,reset)
+	SUBROUTINE MSPL_compute(spl,deriv,r,val,reset,idx)
 	!compute the value in r of the cubic spline specified, and its first deriv derivatives
 		IMPLICIT NONE
 		REAL(KIND=8), INTENT(INOUT) :: val
@@ -417,6 +417,7 @@ CONTAINS
 		INTEGER,INTENT(IN) :: deriv    !specifies the order of the derivative which should be computed
 		TYPE(MSPLINE), INTENT(IN) :: spl   !spline to be computed
 		REAL(KIND=8), INTENT(IN) :: r   !positione where the spline should be evaluated
+      INTEGER, OPTIONAL, INTENT(INOUT) :: idx    !index in the x table for the r used for computing the spline
 		INTEGER :: n, alpha
 		INTEGER :: j1, j2    !the two knots between which r is located
 		REAL(KIND=8) :: ratio
@@ -442,8 +443,13 @@ CONTAINS
          END IF
 		END IF
 		
-		ratio=r/spl%delta
-		j1=FLOOR(ratio)
+      IF (PRESENT(idx).AND.(idx>=0)) THEN
+         j1=idx
+      ELSE
+         ratio=r/spl%delta
+         j1=FLOOR(ratio)
+         IF (PRESENT(idx)) idx=j1
+      END IF
 		j2=j1+1
 		r_min_ri=(r-spl%x(j1))*spl%Idelta
 		ri_min_r=(spl%x(j2)-r)*spl%Idelta
@@ -535,6 +541,43 @@ CONTAINS
       lapl=lapl+dspl*REAL(ndim-1,8)/r+ddspl
       
    END SUBROUTINE MSPL_laplacian
+
+
+   SUBROUTINE MSPL_gradient_and_laplacian(spl,r_vec,ndim,grad,lapl,reset)
+      IMPLICIT NONE
+      TYPE(MSPLINE), INTENT(IN) :: spl
+      INTEGER, INTENT(IN) :: ndim
+      REAL(KIND=8), INTENT(IN) :: r_vec(0:ndim)
+      REAL(KIND=8) :: grad(1:ndim), lapl
+      LOGICAL, OPTIONAL :: reset
+      INTEGER :: i1
+      REAL(KIND=8) :: dspl, ddspl
+
+		IF (MSPL_DEBUG_MODE) THEN
+			IF (.NOT. spl%flag_init) THEN
+				PRINT *, "### MSPL_ERROR ###  invoked by MSPL_gradient"
+				PRINT *, "The spline has not been initialized"
+				STOP
+			END IF
+		END IF
+
+      IF (PRESENT(reset)) THEN
+         IF (reset) THEN
+            grad=0.d0
+            lapl=0.d0
+         END IF
+      ELSE
+         grad=0.d0
+         lapl=0.d0
+      END IF
+
+      i1=-1
+      CALL MSPL_compute(SPL=spl,DERIV=1,R=r_vec(0),VAL=dspl,RESET=.TRUE.,IDX=i1)
+      CALL MSPL_compute(SPL=spl,DERIV=2,R=r_vec(0),VAL=ddspl,RESET=.TRUE.,IDX=i1)
+      grad(1:ndim)=grad(1:ndim)+dspl*r_vec(1:ndim)/r_vec(0)
+      lapl=lapl+dspl*REAL(ndim-1,8)/r_vec(0)+ddspl
+      
+   END SUBROUTINE MSPL_gradient_and_laplacian
 
 
    SUBROUTINE MSPL_print_on_file(spl,deriv,filename,npoints)
