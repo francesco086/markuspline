@@ -40,8 +40,8 @@ CONTAINS
 		END IF
          
       OPEN(UNIT=2,FILE=filename,STATUS='UNKNOWN',POSITION='ASIS')
-      WRITE(UNIT=2, FMT=*), spl%m,spl%Nknots,spl%La,spl%Lb,spl%cutoff
-      WRITE(UNIT=2, FMT=*), spl%t
+      WRITE(UNIT=2, FMT=*) spl%m,spl%Nknots,spl%La,spl%Lb,spl%cutoff
+      WRITE(UNIT=2, FMT=*) spl%t
       CLOSE(UNIT=2)
 
    END SUBROUTINE MSPL_store
@@ -58,9 +58,9 @@ CONTAINS
       cont_wait=0
       DO WHILE ((ioerr<0).AND.(cont_wait<WAIT_MAX_SEC))
          OPEN(UNIT=2,FILE=filename,STATUS='OLD')
-         READ(UNIT=2, FMT=*, IOSTAT=ioerr), spl%m,spl%Nknots,spl%La,spl%Lb,spl%cutoff
+         READ(UNIT=2, FMT=*, IOSTAT=ioerr) spl%m,spl%Nknots,spl%La,spl%Lb,spl%cutoff
          CALL MSPL_new(spl%m,spl%Nknots,spl%La,spl%Lb,spl,spl%cutoff)
-         IF (ioerr==0) READ(UNIT=2, FMT=*, IOSTAT=ioerr), spl%t
+         IF (ioerr==0) READ(UNIT=2, FMT=*, IOSTAT=ioerr) spl%t
          IF (ioerr>0) THEN
             PRINT *, "### MSPL_ERROR ###  invoked by MSPL_load"
             PRINT *, "READ the file ",filename," impossible, IOSTAT=", ioerr
@@ -612,7 +612,7 @@ CONTAINS
       DO i = 0, npoints-1, 1
          x=i*delta
          CALL MSPL_compute(spl,deriv,x,val)
-         WRITE(UNIT=159, FMT=*), x, val
+         WRITE(UNIT=159, FMT=*) x, val
       END DO
 
       CLOSE(UNIT=159,IOSTAT=i)
